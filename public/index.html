@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>JarNOX</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <div id="leftbar" class="leftbar" aria-label="Tools">
+    <div id="buyQuickBtn" class="tool quick-trade" title="Quick Buy">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v14M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div id="sellQuickBtn" class="tool quick-trade" title="Quick Sell">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 21V7M16 17l-4 4-4-4" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div id="linesMaster" class="tool" title="Lines & Channels (open palette)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div id="trendBtn" class="tool" data-tool="trendline" title="Trendline (T)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 15l6-6 4 4 8-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div id="pitchBtn" class="tool" data-tool="pitchfork" title="Pitchfork (P)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l6 6M12 12l6-6M12 6v12" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div id="fibBtn" class="tool" data-tool="fib-retracement" title="Fibonacci (F)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M3 3v18M12 3v18M6 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div id="patternsBtn" class="tool" data-tool="rectangle" title="Patterns (R)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+    </div>
+    <div id="measureBtn" class="tool" data-tool="arrow" title="Measure & Icons (A)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 9H15v9H9V12H3l9-9z" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+    </div>
+    <div id="positionLong" class="tool" data-tool="positionLong" title="Place Long (Shift+L)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v14" stroke="currentColor" stroke-width="1.6"/><path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div id="positionShort" class="tool" data-tool="positionShort" title="Place Short (Shift+S)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 21V7" stroke="currentColor" stroke-width="1.6"/><path d="M16 17l-4 4-4-4" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div id="trashBtn" class="tool" title="Delete all">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6v12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="ray" title="Ray">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 15l6-6 4 4 8-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="tool" data-tool="infoLine" title="Info Line">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12h18M12 3v18" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div class="tool" data-tool="extended" title="Extended Line">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 15l6-6 4 4 8-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="tool" data-tool="horizontal" title="Horizontal Line">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12h18" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div class="tool" data-tool="vertical" title="Vertical Line">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v18" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div class="tool" data-tool="fib-extension" title="Fib Extension">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M3 3v18M12 3v18M6 12h12M9 9l6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="fib-timezone" title="Fib Time Zones">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M6 6h12M6 18H12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="fib-speed-resistance" title="Fib Speed Resistance">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21L21 3M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="gann-fan" title="Gann Fan">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="gann-box" title="Gann Box">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 3v21M3 12h21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="gann-square" title="Gann Square">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 3v21M3 12h21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="elliott-wave" title="Elliott Wave">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21Q6 18 9 15T15 9T21 3M12 3v18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="ellipse" title="Ellipse">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="12" rx="8" ry="6" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+    </div>
+    <div class="tool" data-tool="triangle" title="Triangle">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 15H3l9-15z" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+    </div>
+    <div class="tool" data-tool="brush" title="Brush">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M6 6l3 3M15 15l3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="tool" data-tool="text" title="Text">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 3h18v3H3V3zM3 7h18v3H3V7zM3 11h18v3H3v-3zM3 15h18v3H3v-3z" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div class="tool" data-tool="icon" title="Icons">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div class="tool" data-tool="measure" title="Measure">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M3 3v18M12 3v18M6 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div style="flex:1"></div>
+    
+  </div>
+
+    <div id="linesPalette" class="palette" role="dialog" aria-hidden="true">
+      <div class="palette-header">
+        <div class="search" role="search">
+          <input id="searchInput" placeholder="Search tools (type to filter)"/>
+        </div>
+        <div class="palette-controls">
+          <button id="compactToggle" class="icon-btn" title="Toggle compact view">Compact</button>
+          <button id="closePalette" class="icon-btn" title="Close (Esc)">✕</button>
+        </div>
+      </div>
+      <div id="content">
+        <div class="section">
+          <h4>Lines</h4>
+          <div tabindex="0" class="item" data-tool="trendline" title="Trendline (T)"><div class="label">Trend Line</div></div>
+          <div tabindex="0" class="item" data-tool="ray" title="Ray (R)"><div class="label">Ray</div></div>
+          <div tabindex="0" class="item" data-tool="infoLine" title="Info Line"><div class="label">Info Line</div></div>
+          <div tabindex="0" class="item" data-tool="extended" title="Extended Line (E)"><div class="label">Extended Line</div></div>
+          <div tabindex="0" class="item" data-tool="horizontal" title="Horizontal Line (H)"><div class="label">Horizontal Line</div></div>
+          <div tabindex="0" class="item" data-tool="vertical" title="Vertical Line"><div class="label">Vertical Line</div></div>
+        </div>
+        <div class="section">
+          <h4>Fibonacci</h4>
+          <div tabindex="0" class="item" data-tool="fib-retracement" title="Fib Retracement"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M3 3v18M12 3v18M6 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Fib Retracement</div></div>
+          <div tabindex="0" class="item" data-tool="fib-extension" title="Fib Extension"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M3 3v18M12 3v18M6 12h12M9 9l6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Fib Extension</div></div>
+          <div tabindex="0" class="item" data-tool="fib-timezone" title="Fib Time Zones"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M6 6h12M6 18H12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Fib Time Zones</div></div>
+          <div tabindex="0" class="item" data-tool="fib-speed-resistance" title="Fib Speed Resistance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21L21 3M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Fib Speed Resistance</div></div>
+        </div>
+        <div class="section">
+          <h4>Gann & Tools</h4>
+          <div tabindex="0" class="item" data-tool="gann-fan" title="Gann Fan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Gann Fan</div></div>
+          <div tabindex="0" class="item" data-tool="gann-box" title="Gann Box"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 3v21M3 12h21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Gann Box</div></div>
+          <div tabindex="0" class="item" data-tool="gann-square" title="Gann Square"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 3v21M3 12h21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Gann Square</div></div>
+        </div>
+        <div class="section">
+          <h4>Patterns</h4>
+          <div tabindex="0" class="item" data-tool="elliott-wave" title="Elliott Wave"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21Q6 18 9 15T15 9T21 3M12 3v18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Elliott Wave</div></div>
+          <div tabindex="0" class="item" data-tool="rectangle" title="Rectangle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6" fill="none"/></svg><div class="label">Rectangle</div></div>
+          <div tabindex="0" class="item" data-tool="ellipse" title="Ellipse"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="12" rx="8" ry="6" stroke="currentColor" stroke-width="1.6" fill="none"/></svg><div class="label">Ellipse</div></div>
+          <div tabindex="0" class="item" data-tool="triangle" title="Triangle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 15H3l9-15z" stroke="currentColor" stroke-width="1.6" fill="none"/></svg><div class="label">Triangle</div></div>
+          <div tabindex="0" class="item" data-tool="pitchfork" title="Pitchfork (P)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l6 6M12 12l6-6M12 6v12" stroke="currentColor" stroke-width="1.6"/></svg><div class="label">Pitchfork</div></div>
+        </div>
+        <div class="section">
+          <h4>Forecast & Measure</h4>
+          <div tabindex="0" class="item" data-tool="arrow" title="Arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 9H15v9H9V12H3l9-9z" stroke="currentColor" stroke-width="1.6" fill="none"/></svg><div class="label">Arrow</div></div>
+          <div tabindex="0" class="item" data-tool="brush" title="Brush"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M6 6l3 3M15 15l3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Brush</div></div>
+          <div tabindex="0" class="item" data-tool="text" title="Text (T)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 3h18v3H3V3zM3 7h18v3H3V7zM3 11h18v3H3v-3zM3 15h18v3H3v-3z" stroke="currentColor" stroke-width="1.6"/></svg><div class="label">Text</div></div>
+          <div tabindex="0" class="item" data-tool="icon" title="Icons"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.6"/></svg><div class="label">Icons</div></div>
+          <div tabindex="0" class="item" data-tool="measure" title="Measure"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M3 3v18M12 3v18M6 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><div class="label">Measure</div></div>
+        </div>
+      </div>
+    </div>
+
+  <div id="ctxMenu" role="menu">
+    <button id="ctxDelete">Delete</button>
+    <button id="ctxDuplicate">Duplicate</button>
+    <button id="ctxCopy">Copy</button>
+  </div>
+
+  <div class="main">
+    <header><strong style="font-weight: 700; font-size: 25px;">JarNox</strong>
+      <div style="margin-left:12px">
+        <select id="symbolSelect" class="header-select" aria-label="symbol">
+          <option>BTCUSDT</option><option>ETHUSDT</option><option>BNBUSDT</option>
+        </select>
+        <select id="tfSelect" class="header-select" aria-label="timeframe">
+          <option value="1m">1m</option><option value="3m">3m</option><option value="5m">5m</option><option value="15m">15m</option><option value="30m">30m</option>
+          <option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option>
+          <option value="1d">1d</option><option value="3d">3d</option><option value="1w">1w</option><option value="1M">1M</option>
+        </select>
+        <label style="margin-left:8px;color:var(--muted);font-size:13px">Highlight moves</label>
+        <input id="highlightCheckbox" type="checkbox" style="margin-left:6px"/>
+        <input id="highlightThreshold" type="number" min="0.5" max="50" step="0.1" value="1.5" style="width:80px;margin-left:6px" title="percent threshold"/>
+        <span id="liveBadge" class="live-badge">LIVE</span>
+      </div>
+      <div style="margin-left:auto" class="small">Shapes movable · Leftbar fixed · Handles · Snapping</div></header>
+
+      <div id="chartWrap">
+        <div id="chart"></div>
+        <canvas id="overlay"></canvas>
+        <div id="handlesLayer" aria-hidden="true"></div>
+
+        <div class="controls">
+          <button class="btn" id="fit">Fit</button>
+          <button class="btn" id="zoomIn">Zoom In</button>
+          <button class="btn" id="zoomOut">Zoom Out</button>
+        <button class="btn" id="undoBtn">Undo</button>
+        <button class="btn" id="redoBtn">Redo</button>
+      </div>
+
+      <div id="measure">Measure: —</div>
+      <div id="shapePanel">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" id="deleteShape" title="Delete Selected">Delete</button>
+          <label style="margin:0 6px 0 6px">Color <input type="color" id="colorPicker" value="#ffd166"></label>
+          <label style="margin:0 6px">Width <input id="thickness" type="range" min="1" max="6" value="2"></label>
+          <button class="btn small" id="applyShapeChanges" title="Apply Changes">Apply</button>
+        </div>
+        <label><input type="checkbox" id="labelToggle"> Show precise label (price/time)</label>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted-2)" id="shapeInfo">No shape selected</div>
+      </div>
+
+      <div class="history-bar" title="Undo/Redo">
+        <button class="btn" id="historyUndo">Undo</button>
+        <button class="btn" id="historyRedo">Redo</button>
+        <div class="count" id="historyInfo">0</div>
+      </div>
+
+      
+
+    </div> <!-- end chartWrap -->
+
+    <!-- Bottom panel like TradingView - placed OUTSIDE chartWrap so chart shrinks above it -->
+    <div id="bottomBar">
+      <div class="bt-tabs">
+        <button id="openBacktestPanel" class="bt-tab">Backtesting</button>
+        <button class="bt-tab">Trading Panel</button>
+        <button id="historyTab" class="bt-tab">History</button>
+      </div>
+      <div class="collapse-buttons">
+        <button id="collapseBtn" class="btn icon-btn" title="Collapse Panel">−</button>
+        <button id="expandBtn" class="btn icon-btn" title="Expand Panel" style="display:none;">+</button>
+      </div>
+      <div id="btResultInline" class="bt-result" aria-hidden="true"></div>
+    </div>
+
+    <!-- History Panel -->
+    <div id="historyPanel" class="bt-panel" style="display:none;">
+      <h4>Trade History</h4>
+      <div id="historyTradesList" style="max-height:300px;overflow:auto;"></div>
+    </div>
+
+    <!-- Backtest Popup Modal -->
+    <div id="backtestModal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <span id="closeBacktestModal" class="close">&times;</span>
+        <h4>Backtest</h4>
+        <div id="backtestPanel">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <select id="btStrategy" style="flex:1">
+              <option value="sma">SMA Crossover</option>
+              <option value="rsi">RSI Momentum</option>
+            </select>
+            <input id="btSymbol" value="BTCUSDT" style="width:100px" />
+            <select id="btInterval" style="width:80px">
+              <option value="1m">1m</option><option value="3m">3m</option><option value="5m">5m</option><option value="15m">15m</option><option value="30m">30m</option>
+              <option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option>
+              <option value="1d">1d</option><option value="3d">3d</option><option value="1w">1w</option><option value="1M">1M</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+            <label style="font-size:12px">SMA short <input id="btSmaShort" type="number" value="10" style="width:80px"/></label>
+            <label style="font-size:12px">SMA long <input id="btSmaLong" type="number" value="30" style="width:80px"/></label>
+            <label style="font-size:12px">Initial <input id="btCapital" type="number" value="10000" style="width:100px"/></label>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+            <button id="btRun" class="btn">Run Backtest</button>
+            <div id="btStatus" style="color:#9fb4d6;font-size:13px;margin-left:8px">Ready</div>
+          </div>
+        </div>
+        <div id="backtestResults" style="display:none;padding:8px;">
+          <div id="btMetrics" class="smallMuted"></div>
+          <canvas id="btEquityChart" height="120" style="width:100%;margin-top:8px"></canvas>
+          <div id="btTrades" style="max-height:200px;overflow:auto;margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAPER TRADING PANEL (TOP-RIGHT) -->
+<div id="paperPanel" class="paper-panel" aria-live="polite">
+  <div class="paper-top">
+    <div class="paper-balance">
+      <div>Balance</div>
+      <div id="paperBalance" class="money">$100,000.00</div>
+    </div>
+    <div class="paper-equity">
+      <div>Equity</div>
+      <div id="paperEquity" class="money">$100,000.00</div>
+    </div>
+    <div class="paper-unreal">
+      <div>Unreal P&L</div>
+      <div id="paperUnreal" class="muted">0.00</div>
+    </div>
+  </div>
+
+  <div class="paper-controls">
+    <div class="side-btns">
+      <button id="buyBtn" class="trade-btn buy">BUY</button>
+      <button id="sellBtn" class="trade-btn sell">SELL</button>
+    </div>
+
+    <div class="trade-params">
+      <label>Order Type
+        <select id="orderMode">
+          <option value="amount">Invest ($)</option>
+          <option value="qty">Quantity</option>
+        </select>
+      </label>
+      <label id="amountLabel">Amount $ <input id="orderAmount" type="number" value="1000" min="1" /></label>
+      <label id="qtyLabel" style="display:none">Qty <input id="orderQty" type="number" value="0.001" step="0.0001" /></label>
+      <label>SL <input id="orderSL" type="number" placeholder="stop loss price" /></label>
+      <label>TP <input id="orderTP" type="number" placeholder="take profit price" /></label>
+      <button id="placeOrder" class="btn small">Place Order</button>
+    </div>
+
+    <div class="paper-mini">
+      <div id="lastPrice" class="smallMuted">Price: —</div>
+      <div id="positionsCount" class="smallMuted">Open: 0</div>
+    </div>
+
+    <div id="openTradesList" class="open-trades-list"></div>
+  </div>
+</div>
+<!-- END PAPER PANEL -->
+
+
+    <footer id="status">Status: ready</footer>
+  </div>
+</div>
+
+<!-- libs (keep these before app.js) -->
+<script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- app -->
+<script src="app.js"></script>
+<script src="indicator.js"></script>
+</body>
+</html>

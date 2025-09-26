@@ -1,0 +1,715 @@
+// server.js (updated strategies)
+// Node 16+
+// npm i express ws axios body-parser better-sqlite3
+
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const axios = require('axios');
+const path = require('path');
+const bodyParser = require('body-parser');
+
+// try to require your indicator; if missing, use the complete fallback
+let AruAlgo;
+try {
+  AruAlgo = require('./indicators/arualgo_v6_7');
+  console.log('Loaded external AruAlgo indicator module.');
+} catch (err) {
+  console.warn('Could not load ./indicators/arualgo_v6_7 — using fallback AruAlgo. Error:', err && err.message);
+  // Advanced fallback AruAlgo with SMA, EMA, RSI, Bollinger Bands
+  AruAlgo = class {
+    constructor() {
+      this.candles = []; // {time, open, high, low, close, volume}
+      this.lastSignal = null;
+    }
+    _sma(arr, len) {
+      if (arr.length < len) return null;
+      const last = arr.slice(-len);
+      return last.reduce((s, v) => s + v, 0) / len;
+    }
+    _ema(arr, len) {
+      if (arr.length < len) return null;
+      const k = 2 / (len + 1);
+      let ema = arr.slice(0, len).reduce((s,v)=>s+v,0)/len;
+      for(let i=len;i<arr.length;i++) {
+        ema = arr[i] * k + ema * (1 - k);
+      }
+      return ema;
+    }
+    _rsi(arr, period = 14) {
+      if (arr.length <= period) return null;
+      let gains = 0, losses = 0;
+      for (let i = arr.length - period + 1; i < arr.length; i++) {
+        const d = arr[i] - arr[i - 1];
+        if (d > 0) gains += d; else losses += Math.abs(d);
+      }
+      const rs = gains / (losses || 1e-9);
+      return 100 - (100 / (1 + rs));
+    }
+    _bollinger(arr, len=20, numStd=2) {
+      if (arr.length < len) return null;
+      const vals = arr.slice(-len);
+      const sma = this._sma(arr, len);
+      const std = Math.sqrt(vals.map(x=>(x-sma)**2).reduce((s,v)=>s+v,0)/len);
+      return { upper: sma + numStd*std, lower: sma - numStd*std, sma, std };
+    }
+    processCandle(candle) {
+      this.candles.push(candle);
+      if (this.candles.length > 5000) this.candles.shift();
+      const closes = this.candles.map(x => x.close);
+      const smaShort = this._sma(closes, 10);
+      const smaLong = this._sma(closes, 30);
+      const emaShort = this._ema(closes, 10);
+      const emaLong = this._ema(closes, 30);
+      const rsi = this._rsi(closes, 14);
+      const boll = this._bollinger(closes, 20, 2);
+
+      const out = { ready: false, time: candle.time, close: candle.close };
+      if (smaShort != null && smaLong != null) { out.smaShort = smaShort; out.smaLong = smaLong; }
+      if (emaShort != null && emaLong != null) { out.emaShort = emaShort; out.emaLong = emaLong; }
+      if (rsi != null) out.rsi = rsi;
+      if (boll != null) out.bollinger = boll;
+
+      // 1. SMA Crossover
+      if (this.candles.length >= 31 && smaShort != null && smaLong != null) {
+        const closesPrev = closes.slice(0, -1);
+        const smaShortPrev = (closesPrev.length >= 10) ? this._sma(closesPrev, 10) : null;
+        const smaLongPrev = (closesPrev.length >= 30) ? this._sma(closesPrev, 30) : null;
+        if (smaShortPrev != null && smaLongPrev != null) {
+          if (smaShortPrev <= smaLongPrev && smaShort > smaLong) {
+            out.signal = { side: 'buy', reason: 'sma_cross', time: candle.time, price: candle.close }; this.lastSignal = 'buy';
+          } else if (smaShortPrev >= smaLongPrev && smaShort < smaLong) {
+            out.signal = { side: 'sell', reason: 'sma_cross', time: candle.time, price: candle.close }; this.lastSignal = 'sell';
+          }
+        }
+      }
+
+      // 2. EMA Crossover
+      if (this.candles.length >= 31 && emaShort != null && emaLong != null) {
+        const closesPrev = closes.slice(0, -1);
+        const emaShortPrev = (closesPrev.length >= 10) ? this._ema(closesPrev, 10) : null;
+        const emaLongPrev = (closesPrev.length >= 30) ? this._ema(closesPrev, 30) : null;
+        if (emaShortPrev != null && emaLongPrev != null) {
+          if (emaShortPrev <= emaLongPrev && emaShort > emaLong) {
+            out.signal = { side: 'buy', reason: 'ema_cross', time: candle.time, price: candle.close };
+          } else if (emaShortPrev >= emaLongPrev && emaShort < emaLong) {
+            out.signal = { side: 'sell', reason: 'ema_cross', time: candle.time, price: candle.close };
+          }
+        }
+      }
+
+      // 3. RSI threshold crossing
+      if (rsi != null && this.candles.length > 1) {
+        const prevCloses = closes.slice(0, -1);
+        const prevRsi = (prevCloses.length > 14) ? this._rsi(prevCloses, 14) : null;
+        if (prevRsi != null) {
+          if (prevRsi < 30 && rsi >= 30) {
+            out.signal = { side: 'buy', reason: 'rsi_oversold', time: candle.time, price: candle.close };
+          } else if (prevRsi > 70 && rsi <= 70) {
+            out.signal = { side: 'sell', reason: 'rsi_overbought', time: candle.time, price: candle.close };
+          }
+        }
+      }
+
+      // 4. Bollinger Band mean reversion
+      if (boll != null) {
+        if (candle.close <= boll.lower) {
+          out.signal = { side: 'buy', reason: 'boll_lower', time: candle.time, price: candle.close };
+        } else if (candle.close >= boll.upper) {
+          out.signal = { side: 'sell', reason: 'boll_upper', time: candle.time, price: candle.close };
+        }
+      }
+
+      out.ready = true;
+      return out;
+    }
+  };
+}
+
+const app = express();
+app.use(bodyParser.json({ limit: '2mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+// ---------------- In-memory stores ----------------
+const users = new Map(); // sessionId -> { userId, premiumUntil }
+const connections = new Map(); // ws -> { sessionId, subscriptions: Set }
+const indicatorInstances = new Map(); // key -> AruAlgo instance
+const currentCandles = new Map(); // key -> [candles]
+const feeders = new Map(); // key -> { ws, symbol, interval, connectedAt }
+
+// ---------------- SQLite storage (better-sqlite3) ----------------
+const Database = require('better-sqlite3');
+const db = new Database(path.join(__dirname, 'trades.db'));
+db.pragma('journal_mode = WAL');
+db.prepare(`CREATE TABLE IF NOT EXISTS trades (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  symbol TEXT NOT NULL,
+  side TEXT NOT NULL,
+  entry_price REAL NOT NULL,
+  exit_price REAL,
+  qty REAL,
+  pnl REAL,
+  note TEXT
+)`).run();
+
+// prepared statements
+const insertTradeStmt = db.prepare('INSERT INTO trades (ts,symbol,side,entry_price,exit_price,qty,pnl,note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+const selectRecentTrades = db.prepare('SELECT * FROM trades ORDER BY ts DESC LIMIT ?');
+
+// ---------------- Helpers ----------------
+function keyFor(symbol, interval) { return `${symbol.toUpperCase()}::${interval}`; }
+function isPremium(sessionId) { const u = users.get(sessionId); return !!(u && u.premiumUntil && u.premiumUntil > Date.now()); }
+function safeJsonParse(s) { try { return JSON.parse(s); } catch (_) { return null; } }
+function createSubKey(symbol, indicator) { return `${symbol.toUpperCase()}::${indicator || ''}`; }
+function parseCandle(input) {
+  if (!input) return null;
+  const { time, open, high, low, close, volume } = input;
+  if (time == null || open == null || high == null || low == null || close == null) return null;
+  return { time: Number(time), open: Number(open), high: Number(high), low: Number(low), close: Number(close), volume: Number(volume ?? 0) };
+}
+
+/* Broadcast helpers */
+function broadcastAll(obj) {
+  const payload = JSON.stringify(obj);
+  for (const [ws] of connections.entries()) {
+    if (ws.readyState === WebSocket.OPEN) {
+      try { ws.send(payload); } catch (err) { console.warn('broadcastAll send error', err && err.message); }
+    }
+  }
+}
+
+function broadcastIndicator(symbol, interval, indicatorName, payload) {
+  const key = createSubKey(keyFor(symbol, interval), indicatorName);
+  const payloadMsg = JSON.stringify({ type: 'indicator_update', symbol, interval, indicator: indicatorName, data: payload });
+  for (const [ws, meta] of connections.entries()) {
+    if (!meta || !meta.subscriptions) continue;
+    if (meta.subscriptions.has(key)) {
+      if (!isPremium(meta.sessionId)) {
+        try { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'error', reason:'premium_expired' })); } catch(_) {}
+        meta.subscriptions.delete(key);
+        continue;
+      }
+      try { if (ws.readyState === WebSocket.OPEN) ws.send(payloadMsg); } catch(err) { console.warn('broadcastIndicator send failed', err && err.message); }
+    }
+  }
+}
+
+function broadcastSignalAll(signal, symbol, interval) {
+  const payload = JSON.stringify({ type: 'signal', symbol, interval, signal });
+  for (const [ws] of connections.entries()) {
+    if (ws.readyState === WebSocket.OPEN) {
+      try { ws.send(payload); } catch (err) { console.warn('broadcastSignalAll send error', err && err.message); }
+    }
+  }
+}
+
+// ---------------- WebSocket server for frontends ----------------
+wss.on('connection', (ws, req) => {
+  const remote = req.socket.remoteAddress + ':' + req.socket.remotePort;
+  console.log('WS connection incoming from', remote, 'url:', req.url);
+
+  connections.set(ws, { sessionId: null, subscriptions: new Set() });
+  ws.isAlive = true;
+  ws.on('pong', function () { this.isAlive = true; });
+
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'welcome', msg: 'connected to arualgo feed' }));
+  }
+
+  ws.on('message', (raw) => {
+    const msg = typeof raw === 'string' ? safeJsonParse(raw) : null;
+    if (!msg || !msg.type) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'error', reason:'invalid_message' }));
+      return;
+    }
+    const meta = connections.get(ws);
+
+    if (msg.type === 'auth') {
+      const sid = msg.sessionId || ('guest-' + Math.random().toString(36).slice(2,8));
+      meta.sessionId = sid;
+      if (!users.has(sid)) {
+        users.set(sid, { userId: sid, premiumUntil: msg.demoPremium ? Date.now() + 5*60*1000 : 0 });
+      }
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'auth_ok', sessionId: sid, premium: isPremium(sid) }));
+      return;
+    }
+
+    if (msg.type === 'subscribe') {
+      const symbol = (msg.symbol || 'BTCUSDT').toUpperCase();
+      const interval = msg.interval || '1m';
+      const indicator = msg.indicator || null;
+
+      if (indicator && !isPremium(meta.sessionId)) {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'error', reason:'indicator_requires_premium' }));
+        return;
+      }
+
+      // Ensure feeder / cache exists
+      try {
+        startFeeder(symbol, interval);
+      } catch (err) {
+        console.warn('startFeeder failed in subscribe', err && err.message);
+      }
+
+      const subKey = createSubKey(keyFor(symbol, interval), indicator);
+      meta.subscriptions.add(subKey);
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'subscribed', symbol, interval, indicator }));
+      return;
+    }
+
+    if (msg.type === 'unsubscribe') {
+      const symbol = (msg.symbol || 'BTCUSDT').toUpperCase();
+      const interval = msg.interval || '1m';
+      const indicator = msg.indicator || null;
+      const subKey = createSubKey(keyFor(symbol, interval), indicator);
+      const m = connections.get(ws);
+      if (m) m.subscriptions.delete(subKey);
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'unsubscribed', symbol, interval, indicator }));
+      return;
+    }
+
+    if (msg.type === 'get_snapshot') {
+      const symbol = (msg.symbol || 'BTCUSDT').toUpperCase();
+      const interval = msg.interval || '1m';
+      const limit = Math.min(1000, msg.limit || 500);
+      const arr = currentCandles.get(keyFor(symbol, interval)) || [];
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'snapshot', symbol, interval, data: arr.slice(-limit) }));
+      return;
+    }
+
+    if (msg.type === 'ping') {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'pong' }));
+      return;
+    }
+
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'error', reason:'unknown_type' }));
+  });
+
+  ws.on('close', (code, reason) => {
+    connections.delete(ws);
+    console.log('WS closed', remote, 'code:', code, 'reason:', reason && reason.toString && reason.toString());
+  });
+
+  ws.on('error', (err) => {
+    connections.delete(ws);
+    console.warn('client ws err', err && err.message);
+  });
+});
+
+// heartbeat
+const heartbeatInterval = setInterval(() => {
+  for (const ws of connections.keys()) {
+    if (ws.isAlive === false) {
+      connections.delete(ws);
+      try { ws.terminate(); } catch(_) {}
+      continue;
+    }
+    ws.isAlive = false;
+    try { ws.ping(() => {}); } catch(_) {}
+  }
+}, 30000);
+
+// ---------------- REST endpoints ----------------
+const BINANCE_REST = 'https://api.binance.com';
+
+app.get('/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
+/**
+ * /history
+ * - Fetches Binance REST klines and caches them in currentCandles
+ * - Starts the feeder for the requested symbol+interval so live updates and snapshot become available
+ */
+app.get('/history', async (req, res) => {
+  try {
+    const symbolRaw = String(req.query.symbol || 'BTCUSDT');
+    const symbol = symbolRaw.toUpperCase();
+    const interval = req.query.interval || '1m';
+    const limit = Math.min(1000, Number(req.query.limit || 500));
+
+    // basic validation
+    if (!/^[A-Z0-9]{3,12}$/.test(symbol)) {
+      return res.status(400).json({ error: 'invalid_symbol' });
+    }
+
+    const url = `${BINANCE_REST}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    console.log(`Fetching /history from Binance for ${symbol} ${interval} limit=${limit}`);
+    const r = await axios.get(url, { timeout: 20000, validateStatus: s => s >= 200 && s < 500 });
+
+    if (!r || !Array.isArray(r.data)) {
+      console.warn('Unexpected /history response for', symbol, r && r.status);
+      return res.status(500).json({ error: 'bad_history_response', status: r && r.status });
+    }
+
+    const data = r.data.map(k => ({
+      time: Math.floor(k[0] / 1000),
+      open: Number(k[1]),
+      high: Number(k[2]),
+      low: Number(k[3]),
+      close: Number(k[4]),
+      volume: Number(k[5])
+    }));
+
+    const key = keyFor(symbol, interval);
+    currentCandles.set(key, data.slice(-1000));
+    console.log(`Cached ${currentCandles.get(key).length} bars for ${key}`);
+
+    // Make sure feeder exists for this symbol/interval — startFeeder is idempotent
+    try {
+      startFeeder(symbol, interval);
+      console.log(`Requested startFeeder for ${key} after /history`);
+    } catch (err) {
+      console.warn('startFeeder failed after /history:', err && err.message);
+    }
+
+    res.json({ ok: true, symbol, interval, data });
+  } catch (err) {
+    console.error('history err', err && (err.stack || err.message || err));
+    // send helpful error info (without leaking internals)
+    res.status(500).json({ error: 'failed_fetch_history', message: err && err.message });
+  }
+});
+
+// ingest (unchanged logic, defensive parsing)
+app.post('/ingest', (req, res) => {
+  try {
+    const { symbol, interval, candle } = req.body;
+    if (!symbol || !candle) return res.status(400).json({ error: 'symbol and candle required' });
+    const sym = String(symbol).toUpperCase();
+    const intv = String(interval || '1m');
+    const ck = parseCandle(candle);
+    if (!ck) return res.status(400).json({ error: 'invalid_candle' });
+
+    const key = keyFor(sym, intv);
+    const arr = currentCandles.get(key) || [];
+    if (arr.length > 0 && arr[arr.length - 1].time === ck.time) arr[arr.length - 1] = ck;
+    else arr.push(ck);
+    if (arr.length > 2000) arr.shift();
+    currentCandles.set(key, arr);
+
+    let inst = indicatorInstances.get(key);
+    if (!inst) {
+      inst = new AruAlgo();
+      const seed = currentCandles.get(key) || [];
+      for (const c of seed) inst.processCandle(c);
+      indicatorInstances.set(key, inst);
+    }
+
+    const out = inst.processCandle(ck);
+    if (out && out.ready) {
+      broadcastIndicator(sym, intv, 'arualgo_v6_7', out);
+      if (out.signal) broadcastSignalAll(out.signal, sym, intv);
+    }
+
+    broadcastAll({ type: 'candles_update', symbol: sym, interval: intv, candle: ck, isFinal: true });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('ingest error', err && err.stack || err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// demo premium endpoints
+app.post('/demo/grant', (req, res) => {
+  const { sessionId, minutes } = req.body;
+  if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
+  const mins = Number(minutes) || 10;
+  users.set(sessionId, { userId: sessionId, premiumUntil: Date.now() + mins*60*1000 });
+  res.json({ ok: true, sessionId, premiumUntil: users.get(sessionId).premiumUntil });
+});
+app.post('/demo/revoke', (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
+  users.set(sessionId, { userId: sessionId, premiumUntil: 0 });
+  res.json({ ok: true, sessionId });
+});
+
+// store a paper trade (simple)
+app.post('/paper/trade', (req, res) => {
+  try {
+    const { ts = Math.floor(Date.now() / 1000), symbol, side, entry_price, exit_price = null, qty = 0, pnl = null, note = null } = req.body;
+    if (!symbol || !side || entry_price == null) return res.status(400).json({ error: 'symbol, side, entry_price required' });
+    insertTradeStmt.run(ts, symbol.toUpperCase(), side, entry_price, exit_price, qty, pnl, note);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('paper/trade err', err && err.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.get('/paper/trades/recent', (req, res) => {
+  const limit = Math.min(500, Number(req.query.limit || 50));
+  try {
+    const rows = selectRecentTrades.all(limit);
+    res.json({ ok: true, trades: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'db_error' });
+  }
+});
+
+// ---------------- Backtest endpoint ----------------
+// (kept your existing backtest implementation — unchanged)
+app.post('/backtest', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const symbol = (body.symbol || 'BTCUSDT').toUpperCase();
+    const interval = body.interval || '1m';
+    const strategy = (body.strategy || 'sma').toLowerCase();
+    const limit = Math.min(5000, Number(body.limit || 2000));
+    const initialCapital = Number(body.initial_capital || 10000);
+    const sizePct = Math.max(0.0001, Number(body.size_pct || 0.1));
+    const slippageBps = Number(body.slippage_bps || 5);
+    const commissionPct = Number(body.commission_pct || 0.0005);
+
+    // get candles from cache or REST
+    let arr = currentCandles.get(keyFor(symbol, interval)) || [];
+    if (arr.length < 50) {
+      // fetch from REST
+      const url = `${BINANCE_REST}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${Math.min(1000, limit)}`;
+      const r = await axios.get(url, { timeout: 20000 });
+      arr = r.data.map(k => ({ time: Math.floor(k[0] / 1000), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) }));
+    }
+    if (!arr || arr.length < 30) return res.status(400).json({ error: 'not_enough_data' });
+
+    arr = arr.slice(-limit).sort((a,b) => a.time - b.time);
+
+    // indicator helpers
+    const SMA = (data, idx, len) => {
+      if (idx - len + 1 < 0) return null;
+      let s = 0;
+      for (let i = idx - len + 1; i <= idx; i++) s += data[i].close;
+      return s / len;
+    };
+    const RSI = (data, idx, period = 14) => {
+      if (idx - period < 0) return null;
+      let gains = 0, losses = 0;
+      for (let i = idx - period + 1; i <= idx; i++) {
+        const diff = data[i].close - data[i-1].close;
+        if (diff > 0) gains += diff; else losses += Math.abs(diff);
+      }
+      const rs = gains / (losses || 1e-9);
+      return 100 - (100 / (1 + rs));
+    };
+
+    // backtest core (identical to your logic)
+    let cash = initialCapital;
+    let position = 0;
+    let entryPrice = 0;
+    const trades = [];
+    const equity = [];
+    const metrics = { initialCapital };
+    const smaShort = Number(body.sma_short || 10);
+    const smaLong = Number(body.sma_long || 30);
+    const rsiPeriod = Number(body.rsi_period || 14);
+    const rsiOverbought = Number(body.rsi_overbought || 70);
+    const rsiOversold = Number(body.rsi_oversold || 30);
+
+    for (let i = 1; i < arr.length - 1; i++) {
+      const sShort = SMA(arr, i, smaShort);
+      const sLong = SMA(arr, i, smaLong);
+      const rsi = RSI(arr, i, rsiPeriod);
+
+      let signal = null;
+      if (strategy === 'sma' && sShort != null && sLong != null) {
+        const sShortPrev = SMA(arr, i - 1, smaShort);
+        const sLongPrev = SMA(arr, i - 1, smaLong);
+        if (sShortPrev != null && sLongPrev != null) {
+          if (sShortPrev <= sLongPrev && sShort > sLong) signal = 'buy';
+          else if (sShortPrev >= sLongPrev && sShort < sLong) signal = 'sell';
+        }
+      } else if (strategy === 'rsi' && rsi != null) {
+        const prevRsi = RSI(arr, i - 1, rsiPeriod);
+        if (prevRsi != null) {
+          if (prevRsi < rsiOversold && rsi >= rsiOversold) signal = 'buy';
+          else if (prevRsi > rsiOverbought && rsi <= rsiOverbought) signal = 'sell';
+        }
+      }
+
+      if (signal === 'buy' && position === 0) {
+        const execPrice = arr[i+1].open * (1 + slippageBps/10000) * (1 + commissionPct);
+        const capitalToUse = cash * sizePct;
+        const qty = capitalToUse / execPrice;
+        position = qty;
+        entryPrice = execPrice;
+        cash -= qty * execPrice;
+        trades.push({ ts: arr[i+1].time, symbol, side:'buy', entry_price: execPrice, exit_price: null, qty, pnl: null, note: 'sma_buy' });
+      } else if (signal === 'sell' && position > 0) {
+        const execPrice = arr[i+1].open * (1 - slippageBps/10000) * (1 - commissionPct);
+        const qty = position;
+        const pnl = qty * (execPrice - entryPrice);
+        cash += qty * execPrice;
+        position = 0;
+        trades.push({ ts: arr[i+1].time, symbol, side:'sell', entry_price: null, exit_price: execPrice, qty, pnl, note: 'sma_sell' });
+      }
+
+      const marketValue = position > 0 ? position * arr[i].close : 0;
+      const totalEquity = cash + marketValue;
+      equity.push({ time: arr[i].time, equity: totalEquity });
+    }
+
+    if (position > 0) {
+      const lastBar = arr[arr.length - 1];
+      const exitPrice = lastBar.close * (1 - slippageBps/10000) * (1 - commissionPct);
+      const qty = position;
+      const pnl = qty * (exitPrice - entryPrice);
+      cash += qty * exitPrice;
+      trades.push({ ts: lastBar.time, symbol, side:'sell', entry_price: null, exit_price: exitPrice, qty, pnl, note: 'exit_on_finish' });
+      position = 0;
+      equity.push({ time: lastBar.time, equity: cash });
+    }
+
+    const finalEquity = equity.length ? equity[equity.length - 1].equity : cash;
+    const totalReturn = ((finalEquity - initialCapital) / initialCapital) * 100;
+    metrics.finalEquity = finalEquity;
+    metrics.totalReturnPct = totalReturn;
+    metrics.trades = trades.length;
+    metrics.startTime = arr[0].time;
+    metrics.endTime = arr[arr.length-1].time;
+
+    if (body.persistTrades) {
+      for (const t of trades) {
+        const ts = t.ts || Math.floor(Date.now()/1000);
+        const side = (t.side || 'sell');
+        const entry = t.entry_price || null;
+        const exit = t.exit_price || null;
+        const qty = t.qty || 0;
+        const pnl = (t.pnl == null) ? null : Number(t.pnl);
+        const note = t.note || null;
+        insertTradeStmt.run(ts, symbol, side, entry, exit, qty, pnl, note);
+      }
+    }
+
+    res.json({ ok: true, symbol, interval, strategy, metrics, trades, equity });
+  } catch (err) {
+    console.error('backtest err', err && err.stack || err);
+    res.status(500).json({ error: 'backtest_failed', message: err && err.message });
+  }
+});
+
+// ---------------- Binance feeder (per symbol+interval) ----------------
+const BINANCE_WS_BASE = 'wss://stream.binance.com:9443/ws';
+
+/**
+ * startFeeder:
+ * - idempotent (won't re-start if already running)
+ * - seeds indicator instance with cached history (if available)
+ * - robustly handles connection errors and will attempt reconnect after a delay
+ */
+function startFeeder(symbol='BTCUSDT', interval='1m') {
+  const key = keyFor(symbol, interval);
+  if (feeders.has(key)) {
+    // already started
+    return;
+  }
+  console.log('Starting feeder for', key);
+
+  const seedCandles = currentCandles.get(key) || [];
+  let inst = indicatorInstances.get(key);
+  if (!inst) {
+    inst = new AruAlgo();
+    if (seedCandles.length > 0) {
+      for (const c of seedCandles) inst.processCandle(c);
+      console.log(`Seeded ${seedCandles.length} candles for ${key}`);
+    }
+    indicatorInstances.set(key, inst);
+  }
+
+  const stream = `${symbol.toLowerCase()}@kline_${interval}`;
+  const url = `${BINANCE_WS_BASE}/${stream}`;
+  let bws;
+  try {
+    bws = new WebSocket(url);
+  } catch (err) {
+    console.warn('Failed to create Binance WS for', key, err && err.message);
+    // schedule retry
+    setTimeout(() => startFeeder(symbol, interval), 2000);
+    feeders.set(key, { ws: null, symbol, interval, connectedAt: null });
+    return;
+  }
+
+  feeders.set(key, { ws: bws, symbol, interval, connectedAt: Date.now() });
+
+  bws.on('open', () => console.log('Binance feeder connected for', key));
+  bws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw.toString());
+      if (!msg || !msg.k) return;
+      const k = msg.k;
+      if (!k.t) return; // malformed
+
+      const candle = {
+        time: Math.floor(k.t / 1000),
+        open: Number(k.o),
+        high: Number(k.h),
+        low: Number(k.l),
+        close: Number(k.c),
+        volume: Number(k.v)
+      };
+      const isFinal = !!k.x;
+
+      let arr = currentCandles.get(key) || [];
+      if (arr.length > 0 && arr[arr.length - 1].time === candle.time) {
+        arr[arr.length - 1] = candle;
+      } else {
+        arr.push(candle);
+        if (arr.length > 2000) arr.shift();
+      }
+      currentCandles.set(key, arr);
+
+      // broadcast candle update
+      broadcastAll({ type: 'candles_update', symbol, interval, candle, isFinal });
+
+      // if final candle, process indicator and broadcast indicator/signal
+      if (isFinal) {
+        const instance = indicatorInstances.get(key);
+        if (instance) {
+          const out = instance.processCandle(candle);
+          if (out && out.ready) {
+            broadcastIndicator(symbol, interval, 'arualgo_v6_7', out);
+            if (out.signal) broadcastSignalAll(out.signal, symbol, interval);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('feeder parse err', err && err.message);
+    }
+  });
+
+  bws.on('close', (code, reason) => {
+    console.log('Binance feeder closed for', key, 'code:', code, 'reason:', reason && reason.toString && reason.toString());
+    feeders.delete(key);
+    // reconnect after a small delay
+    setTimeout(() => startFeeder(symbol, interval), 2000);
+  });
+
+  bws.on('error', (err) => {
+    console.warn('Binance feeder error for', key, err && err.message);
+    try { if (bws) bws.terminate(); } catch(_) {}
+    feeders.delete(key);
+    // retry
+    setTimeout(() => startFeeder(symbol, interval), 2000);
+  });
+}
+
+// Start default feeder (keep previous default behavior)
+startFeeder('BTCUSDT', '1m');
+
+// ---------------- Start server ----------------
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+
+// Cleanup
+process.on('SIGINT', () => {
+  console.log('shutting down...');
+  clearInterval(heartbeatInterval);
+  for (const f of feeders.values()) {
+    try { f.ws && f.ws.terminate(); } catch(_) {}
+  }
+  wss.close();
+  server.close(() => process.exit(0));
+});
